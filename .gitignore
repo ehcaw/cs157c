@@ -1,0 +1,10 @@
+venv
+
+# Added by catdoc
+logs/
+docs/
+.catdoc.cache.json
+*.tree.json
+*.cache.json
+*.ini
+__pycache__
