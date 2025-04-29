@@ -14,7 +14,6 @@ import getpass
 import re
 import hashlib
 import configparser
-from typing import Dict, List, Optional
 
 try:
     from neo4j import GraphDatabase, exceptions as neo4j_exceptions
@@ -66,15 +65,15 @@ class Neo4jConnection:
             return None
 
 class SocialNetworkCLI(cmd.Cmd):
-    """Command-line interface for the Social Network application."""
+    """Command-line interface for the Socli Network application."""
 
     intro = """
     ╔═══════════════════════════════════════════════╗
-    ║         Social Network Graph Application       ║
+    ║                    Socli                      ║
     ║           Type 'help' for commands            ║
     ╚═══════════════════════════════════════════════╝
     """
-    prompt = "social> "
+    prompt = "socli> "
     current_user = None
 
     def __init__(self):
@@ -257,7 +256,7 @@ class SocialNetworkCLI(cmd.Cmd):
 
         username = self.current_user
         self.current_user = None
-        self.prompt = "social> "
+        self.prompt = "socli> "
         print(f"Goodbye, {username}!")
 
     def do_profile(self, arg):
@@ -714,7 +713,7 @@ class SocialNetworkCLI(cmd.Cmd):
             super().do_help(arg)
         else:
             # Show categorized help menu
-            print("\n=== Social Network Commands ===\n")
+            print("\n=== Socli Network Commands ===\n")
 
             print("Account Management:")
             print("  register        - Create a new user account")
@@ -737,7 +736,7 @@ class SocialNetworkCLI(cmd.Cmd):
             super().do_help(arg)
         else:
             # Show categorized help menu
-            print("\n=== Social Network Commands ===\n")
+            print("\n=== Socli Network Commands ===\n")
 
             print("Account Management:")
             print("  register        - Create a new user account")
@@ -747,7 +746,7 @@ class SocialNetworkCLI(cmd.Cmd):
             print("  edit_profile    - Edit your profile information")
             print("  change_password - Change your account password")
 
-            print("\nSocial Interactions:")
+            print("\nSocli Interactions:")
             print("  follow <user>   - Follow another user")
             print("  unfollow <user> - Unfollow a user")
             print("  followers [user]- List users following you or another user")
@@ -762,7 +761,7 @@ class SocialNetworkCLI(cmd.Cmd):
 
     def do_exit(self, arg):
         """Exit the application."""
-        print("Thank you for using Social Network. Goodbye!")
+        print("Thank you for using Socli. Goodbye!")
 
         if self.connection:
             self.connection.close()
@@ -782,5 +781,5 @@ if __name__ == "__main__":
     try:
         SocialNetworkCLI().cmdloop()
     except KeyboardInterrupt:
-        print("\nExiting Social Network. Goodbye!")
+        print("\nExiting Socli Network. Goodbye!")
         sys.exit(0)
