@@ -187,55 +187,6 @@ def import_facebook_data(dataset_dir: str):
             created = result[0]["created_count"]
             print(f"Imported relationships batch {i//batch_size + 1}/{(len(total_edges) + batch_size - 1)//batch_size}: {created} processed")
 
-    # Optionally import circles if available
-    circles_files = list(dataset_path.glob("*.circles"))
-    if circles_files:
-        print("Importing circle information...")
-
-        for circles_file in circles_files:
-            ego_user_id = int(circles_file.stem.split('.')[0])
-            ego_username = f"fb{ego_user_id}"
-
-            # Parse circles file
-            circles = parse_circles_file(str(circles_file))
-
-            for circle_name, member_ids in circles.items():
-                # Create the circle
-                create_circle_query = """
-                MATCH (ego:User {username: $ego_username})
-                MERGE (c:Circle {name: $circle_name, owner: $ego_username})
-                RETURN c
-                """
-
-                connection.execute_query(
-                    create_circle_query,
-                    {"ego_username": ego_username, "circle_name": circle_name}
-                )
-
-                # Add members to the circle
-                member_usernames = [f"fb{mid}" for mid in member_ids]
-
-                add_members_query = """
-                MATCH (c:Circle {name: $circle_name, owner: $ego_username})
-                UNWIND $member_usernames AS member_username
-                MATCH (m:User {username: member_username})
-                MERGE (c)-[:HAS_MEMBER]->(m)
-                RETURN count(m) as added_count
-                """
-
-                result = connection.execute_query(
-                    add_members_query,
-                    {
-                        "ego_username": ego_username,
-                        "circle_name": circle_name,
-                        "member_usernames": member_usernames
-                    }
-                )
-
-                if result:
-                    added = result[0]["added_count"]
-                    print(f"Added {added} members to circle '{circle_name}' for user {ego_username}")
-
     print("\nImport completed successfully!")
     print(f"Imported {len(total_users)} users and {len(total_edges)} follows relationships")
     print("\nDefault password for all imported users: 'password123'")
