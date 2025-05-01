@@ -822,6 +822,63 @@ class SocialNetworkCLI(cmd.Cmd):
         """Exit on Ctrl+D."""
         print()  # Add newline
         return self.do_exit(arg)
+    
+    def do_search(self, arg):
+        if not self.connection.verify_connection():
+            print("Database connection is not available.")
+            return
+
+        term = arg.strip()
+        if not term:
+            term = input("Enter name or username to search: ").strip()
+        if not term:
+            print("Search term cannot be empty.")
+            return
+
+        query = """
+        MATCH (u:User)
+        WHERE toLower(u.name) CONTAINS toLower($term) OR toLower(u.username) CONTAINS toLower($term)
+        RETURN u.username AS username, u.name AS name
+        ORDER BY u.username
+        LIMIT 10
+        """
+
+        result = self.connection.execute_query(query, {"term": term})
+
+        if not result:
+            print("No matching users found.")
+            return
+
+        print("\n=== Search Results ===")
+        for i, user in enumerate(result, 1):
+            print(f"{i}. {user['username']} ({user['name']})")
+        print()
+
+    def do_popular(self, arg):
+        """Explore popular users (most followed): popular"""
+        if not self.connection.verify_connection():
+            print("Database connection is not available.")
+            return
+
+        query = """
+        MATCH (u:User)<-[:FOLLOWS]-(f:User)
+        RETURN u.username AS username, u.name AS name, count(f) AS followers
+        ORDER BY followers DESC
+        LIMIT 10
+        """
+
+        result = self.connection.execute_query(query)
+
+        if not result:
+            print("Failed to retrieve popular users.")
+            return
+
+        print("\n=== Most Followed Users ===")
+        for i, user in enumerate(result, 1):
+            print(f"{i}. {user['username']} ({user['name']}) - {user['followers']} followers")
+        print()
+
+
 
 if __name__ == "__main__":
     try:
