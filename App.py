@@ -476,6 +476,51 @@ class SocialNetworkCLI(cmd.Cmd):
         else:
             print("Failed to change password.")
 
+    def do_delete(self, arg):
+        """Delete your own user: delete"""
+        if not self.current_user:
+            print("Please login first")
+            return
+
+
+        password = getpass.getpass("Password: ")
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        query = """
+        MATCH (u:User {username: $username, password: $password})
+        RETURN u.username as username
+        """
+        password_confirmation = getpass.getpass("Confirm Password: ")
+        hashed_password_confirmation = hashlib.sha256(password_confirmation.encode()).hexdigest()
+
+        if hashed_password != hashed_password_confirmation:
+            print("Passwords didn't match")
+            return
+
+        result = self.connection.execute_query(
+            query,
+            {"username": self.current_user, "password": hashed_password}
+        )
+
+        if result:
+            confirm_deletion = input("Confirm you want to delete by typing yes: ")
+            if not confirm_deletion or confirm_deletion != "yes":
+                print("Cancelling user deletion")
+                return
+
+            query = """
+            MATCH (n: User {username: $username})
+            DETACH DELETE n
+            """
+
+            delete_result =  self.connection.execute_query(query, {"username": self.current_user})
+            if delete_result is not None:
+                print(f"User {self.current_user} successfully deleted!")
+                self.current_user = None
+                self.prompt = "social> "
+            else:
+                print("Failed to delete user.")
+
+
     def do_follow(self, arg):
         """Follow another user: follow <username>"""
         if not self.connection.verify_connection():
@@ -722,6 +767,7 @@ class SocialNetworkCLI(cmd.Cmd):
             print("  profile [user]  - View your profile or another user's profile")
             print("  edit_profile    - Edit your profile information")
             print("  change_password - Change your account password")
+            print("  delete          - Delete your own account")
 
             print("\nGeneral Commands:")
             print("  clear           - Clear the screen")
