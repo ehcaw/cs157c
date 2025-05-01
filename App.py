@@ -773,6 +773,10 @@ class SocialNetworkCLI(cmd.Cmd):
             print("  clear           - Clear the screen")
             print("  help            - Show this help message")
             print("  exit            - Exit the application")
+
+            print("\nSearch & Exploration:")
+            print("  search [term]         - Search users by name or username")
+            print("  popular               - Explore the most followed users")
             print()
 
     def do_ls(self, arg):
