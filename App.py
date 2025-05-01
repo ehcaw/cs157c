@@ -780,7 +780,7 @@ class SocialNetworkCLI(cmd.Cmd):
     def do_search(self, arg):
         if not self.connection.verify_connection():
             print("Database connection is not available.")
-        return
+            return
 
         term = arg.strip()
         if not term:
@@ -812,7 +812,7 @@ class SocialNetworkCLI(cmd.Cmd):
         """Explore popular users (most followed): popular"""
         if not self.connection.verify_connection():
             print("Database connection is not available.")
-        return
+            return
 
         query = """
         MATCH (u:User)<-[:FOLLOWS]-(f:User)
