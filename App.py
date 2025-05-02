@@ -526,7 +526,6 @@ class SocialNetworkCLI(cmd.Cmd):
         if not self.connection.verify_connection():
             print("Database connection is not available.")
             return
-
         if not self.current_user:
             print("Please login first.")
             return
@@ -535,58 +534,47 @@ class SocialNetworkCLI(cmd.Cmd):
         if not username:
             print("Please specify a username to follow.")
             return
-
         if username == self.current_user:
             print("You cannot follow yourself.")
             return
 
-        # Check if user exists
-        user_check = self.connection.execute_query(
-            "MATCH (u:User {username: $username}) RETURN u",
-            {"username": username}
+        # Check existence
+        user_exists = self.connection.execute_query(
+            "MATCH (u:User {username: $username}) RETURN u", {"username": username}
         )
-
-        if not user_check or len(user_check) == 0:
+        if not user_exists:
             print(f"User '{username}' not found.")
             return
 
         # Check if already following
-        follow_check = self.connection.execute_query(
+        already = self.connection.execute_query(
             """
-            MATCH (follower:User {username: $follower})-[:FOLLOWS]->(following:User {username: $following})
-            RETURN follower
+            MATCH (:User {username: $me})-[r:FOLLOWS]->(:User {username: $them})
+            RETURN r.since AS since
             """,
-            {"follower": self.current_user, "following": username}
+            {"me": self.current_user, "them": username}
         )
 
-        if follow_check and len(follow_check) > 0:
-            print(f"You're already following {username}.")
+        if already:
+            since = already[0].get("since")
+            print(f"You're already following {username} since {since or 'earlier'}.")
             return
 
-        # Create follow relationship
-        follow_query = """
-        MATCH (follower:User {username: $follower})
-        MATCH (following:User {username: $following})
-        CREATE (follower)-[:FOLLOWS {since: datetime()}]->(following)
-        RETURN follower.username as follower, following.username as following
+        # Follow
+        query = """
+        MATCH (a:User {username: $me}), (b:User {username: $them})
+        CREATE (a)-[:FOLLOWS {since: datetime()}]->(b)
         """
+        self.connection.execute_query(query, {"me": self.current_user, "them": username})
+        print(f"You're now following {username}.")
+        # By Siddhi Patil – UC-5
 
-        follow_result = self.connection.execute_query(
-            follow_query,
-            {"follower": self.current_user, "following": username}
-        )
-
-        if follow_result:
-            print(f"You're now following {username}.")
-        else:
-            print(f"Failed to follow {username}.")
 
     def do_unfollow(self, arg):
         """Unfollow a user: unfollow <username>"""
         if not self.connection.verify_connection():
             print("Database connection is not available.")
             return
-
         if not self.current_user:
             print("Please login first.")
             return
@@ -596,35 +584,32 @@ class SocialNetworkCLI(cmd.Cmd):
             print("Please specify a username to unfollow.")
             return
 
-        # Check if currently following
-        follow_check = self.connection.execute_query(
+        check = self.connection.execute_query(
             """
-            MATCH (follower:User {username: $follower})-[r:FOLLOWS]->(following:User {username: $following})
+            MATCH (:User {username: $me})-[r:FOLLOWS]->(:User {username: $them})
             RETURN r
             """,
-            {"follower": self.current_user, "following": username}
+            {"me": self.current_user, "them": username}
         )
 
-        if not follow_check or len(follow_check) == 0:
-            print(f"You're not following {username}.")
+        if not check:
+            print(f"You are not following {username}.")
             return
 
-        # Delete follow relationship
-        unfollow_query = """
-        MATCH (follower:User {username: $follower})-[r:FOLLOWS]->(following:User {username: $following})
-        DELETE r
-        RETURN follower.username as follower, following.username as following
-        """
+        confirm = input(f"Unfollow {username}? Type 'yes' to confirm: ")
+        if confirm.lower() != 'yes':
+            print("Cancelled.")
+            return
 
-        unfollow_result = self.connection.execute_query(
-            unfollow_query,
-            {"follower": self.current_user, "following": username}
+        self.connection.execute_query(
+            """
+            MATCH (:User {username: $me})-[r:FOLLOWS]->(:User {username: $them})
+            DELETE r
+            """,
+            {"me": self.current_user, "them": username}
         )
-
-        if unfollow_result:
-            print(f"You've unfollowed {username}.")
-        else:
-            print(f"Failed to unfollow {username}.")
+        print(f"You've unfollowed {username}.")
+    # By Siddhi Patil – UC-6
 
     def do_followers(self, arg):
         """List users following you or another user: followers [username]"""
@@ -632,39 +617,29 @@ class SocialNetworkCLI(cmd.Cmd):
             print("Database connection is not available.")
             return
 
-        # Determine which user's followers to show
-        if arg:
-            username = arg.strip()
-        elif self.current_user:
-            username = self.current_user
-        else:
-            print("Please login first or specify a username.")
+        username = arg.strip() or self.current_user
+        if not username:
+            print("Please login or specify a username.")
             return
 
-        # Get followers
-        query = """
-        MATCH (follower:User)-[:FOLLOWS]->(user:User {username: $username})
-        RETURN follower.username as username, follower.name as name
-        ORDER BY username
-        """
-
         result = self.connection.execute_query(
-            query,
+            """
+            MATCH (f:User)-[:FOLLOWS]->(u:User {username: $username})
+            RETURN f.username AS follower, f.name AS name
+            ORDER BY follower
+            """,
             {"username": username}
         )
 
         if not result:
-            print("Failed to retrieve followers.")
+            print(f"No one follows {username}.")
             return
 
-        if len(result) == 0:
-            print(f"No users are following {username}.")
-            return
+        print(f"\nFollowers of {username}:")
+        for i, row in enumerate(result, 1):
+            print(f"{i}. {row['follower']} ({row['name']})")
+    # By Siddhi Patil – UC-7A
 
-        print(f"\n=== Followers of {username} ===")
-        for i, follower in enumerate(result, 1):
-            print(f"{i}. {follower['username']} ({follower['name']})")
-        print()
 
     def do_following(self, arg):
         """List users you or another user is following: following [username]"""
@@ -672,79 +647,57 @@ class SocialNetworkCLI(cmd.Cmd):
             print("Database connection is not available.")
             return
 
-        # Determine which user's following list to show
-        if arg:
-            username = arg.strip()
-        elif self.current_user:
-            username = self.current_user
-        else:
-            print("Please login first or specify a username.")
+        username = arg.strip() or self.current_user
+        if not username:
+            print("Please login or specify a username.")
             return
 
-        # Get following
-        query = """
-        MATCH (user:User {username: $username})-[:FOLLOWS]->(following:User)
-        RETURN following.username as username, following.name as name
-        ORDER BY username
-        """
-
         result = self.connection.execute_query(
-            query,
+            """
+            MATCH (u:User {username: $username})-[:FOLLOWS]->(f:User)
+            RETURN f.username AS following, f.name AS name
+            ORDER BY following
+            """,
             {"username": username}
         )
 
         if not result:
-            print("Failed to retrieve following list.")
-            return
-
-        if len(result) == 0:
             print(f"{username} is not following anyone.")
             return
 
-        print(f"\n=== Users {username} is following ===")
-        for i, following in enumerate(result, 1):
-            print(f"{i}. {following['username']} ({following['name']})")
-        print()
+        print(f"\n{username} is following:")
+        for i, row in enumerate(result, 1):
+            print(f"{i}. {row['following']} ({row['name']})")
+    # By Siddhi Patil – UC-7B
 
     def do_recommendations(self, arg):
-        """Get friend recommendations based on your network."""
+        """Show people you may know: recommendations"""
         if not self.connection.verify_connection():
             print("Database connection is not available.")
             return
-
         if not self.current_user:
-            print("Please login first to get recommendations.")
+            print("Please login first.")
             return
 
-        # Get recommendations based on friends of friends
-        query = """
-        MATCH (user:User {username: $username})-[:FOLLOWS]->(:User)-[:FOLLOWS]->(recommendation:User)
-        WHERE recommendation.username <> $username
-        AND NOT (user)-[:FOLLOWS]->(recommendation)
-        RETURN recommendation.username as username, recommendation.name as name,
-               count(*) as mutual_connections
-        ORDER BY mutual_connections DESC
-        LIMIT 5
-        """
-
         result = self.connection.execute_query(
-            query,
-            {"username": self.current_user}
+            """
+            MATCH (me:User {username: $me})-[:FOLLOWS]->(:User)-[:FOLLOWS]->(rec:User)
+            WHERE rec.username <> $me AND NOT (me)-[:FOLLOWS]->(rec)
+            RETURN rec.username AS username, rec.name AS name, COUNT(*) AS mutuals
+            ORDER BY mutuals DESC, username
+            LIMIT 5
+            """,
+            {"me": self.current_user}
         )
 
         if not result:
-            print("Failed to generate recommendations.")
+            print("No recommendations available.")
             return
 
-        if len(result) == 0:
-            print("No recommendations available at this time.")
-            return
-
-        print("\n=== People You May Know ===")
-        for i, rec in enumerate(result, 1):
-            print(f"{i}. {rec['username']} ({rec['name']}) - {rec['mutual_connections']} mutual connection(s)")
-        print()
-
+        print("\nPeople You May Know:")
+        for i, row in enumerate(result, 1):
+            print(f"{i}. {row['username']} ({row['name']}) – {row['mutuals']} mutual connection(s)")
+    # By Siddhi Patil – UC-9
     def do_clear(self, arg):
         """Clear the screen."""
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -881,6 +834,67 @@ class SocialNetworkCLI(cmd.Cmd):
         for i, user in enumerate(result, 1):
             print(f"{i}. {user['username']} ({user['name']}) - {user['followers']} followers")
         print()
+    
+
+
+    def do_mutuals(self, arg):
+        """Find mutual connections between you and another user: mutuals <username>"""
+        if not self.connection.verify_connection():
+            print("Database connection is not available.")
+            return
+
+        if not self.current_user:
+            print("Please login first.")
+            return
+
+        other_username = arg.strip()
+        if not other_username:
+            print("Usage: mutuals <username>")
+            return
+
+        if other_username == self.current_user:
+            print("Cannot check mutuals with yourself.")
+            return
+
+        query = """
+        MATCH (me:User {username: $user1})-[:FOLLOWS]->(x)<-[:FOLLOWS]-(other:User {username: $user2})
+        RETURN DISTINCT x.username AS mutual_friend
+        """
+
+        result = self.connection.execute_query(query, {
+            "user1": self.current_user,
+            "user2": other_username
+        })
+
+        if result is None:
+            print("Failed to retrieve mutuals.")
+            return
+
+        if not result:
+            print(f"No mutuals found with {other_username}.")
+        else:
+            print(f"\n=== Mutuals with {other_username} ===")
+            for i, r in enumerate(result, 1):
+                print(f"{i}. {r['mutual_friend']}")
+            print()
+
+
+    def do_debug_mutual_pairs(self, arg):
+        """Temporary: Show sample users with mutual follows."""
+        query = """
+        MATCH (a:User)-[:FOLLOWS]->(b:User),
+            (b)-[:FOLLOWS]->(a)
+        RETURN DISTINCT a.username AS user1, b.username AS user2
+        LIMIT 10
+        """
+        result = self.connection.execute_query(query)
+        if not result:
+            print("No mutual follow pairs found.")
+            return
+        print("\n=== Sample Mutual Follower Pairs ===")
+        for i, row in enumerate(result, 1):
+            print(f"{i}. {row['user1']} ↔ {row['user2']}")
+
 
 
 
